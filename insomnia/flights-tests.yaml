@@ -1,0 +1,126 @@
+type: collection.insomnia.rest/5.0
+name: Flights API Tests
+meta:
+  id: wrk_flights_tests
+  description: Tests for the KongAir Flights API. Run against the mock, staging or production gateway by switching environments.
+collection:
+  - name: Flights
+    meta:
+      id: fld_flights
+    scripts:
+      afterResponse: |-
+        // headers.get() is case-sensitive, so look headers up case-insensitively
+        const header = name =>
+          insomnia.response.headers.find(h => h.key.toLowerCase() === name.toLowerCase())?.value;
+        insomnia.test('[common] response time < 5000ms', () => {
+          insomnia.expect(insomnia.response.responseTime).to.be.below(5000);
+        });
+        insomnia.test('[common] body is valid JSON', () => {
+          insomnia.expect(() => JSON.parse(insomnia.response.text())).to.not.throw();
+        });
+        insomnia.test('[common] JSON response', () => {
+          insomnia.expect(header('Content-Type')).to.include('application/json');
+        });
+        // Gateway policy checks (skipped when calling the mock directly)
+        if (insomnia.environment.get('via_gateway')) {
+          insomnia.test('[gateway] rate-limiting is applied', () => {
+            insomnia.expect(header('X-RateLimit-Limit-Minute')).to.eql('60');
+          });
+          insomnia.test('[gateway] correlation id is returned', () => {
+            insomnia.expect(header('X-Correlation-ID')).to.match(/^[0-9a-f-]{36}/);
+          });
+        }
+    children:
+      - url: "{{ _.base_url }}/flights"
+        name: "[smoke] List flights"
+        meta:
+          id: req_list_flights
+        method: GET
+        headers:
+          - name: insomnia-mock-method
+            value: GET
+        scripts:
+          afterResponse: |-
+            let flights;
+            try { flights = insomnia.response.json(); } catch { flights = undefined; }
+            insomnia.test('status 200', () => insomnia.expect(insomnia.response.code).to.eql(200));
+            insomnia.test('returns 2 flights', () => insomnia.expect(flights).to.have.lengthOf(2));
+            insomnia.test('each flight has number/from/to', () => {
+              insomnia.expect(flights).to.be.an('array');
+              flights.forEach(f => insomnia.expect(f).to.have.all.keys('number', 'from', 'to'));
+            });
+            if (Array.isArray(flights) && flights.length > 0) {
+              insomnia.environment.set('flight_number', flights[0].number);
+            }
+      - url: "{{ _.base_url }}/flights/{{ _.flight_number }}"
+        name: Get flight
+        meta:
+          id: req_get_flight
+        method: GET
+        headers:
+          - name: insomnia-mock-method
+            value: GET
+        scripts:
+          afterResponse: |-
+            let flight = {};
+            try { flight = insomnia.response.json(); } catch { flight = {}; }
+            insomnia.test('status 200', () => insomnia.expect(insomnia.response.code).to.eql(200));
+            insomnia.test('returns the requested flight', () => {
+              insomnia.expect(flight.number).to.eql(insomnia.environment.get('flight_number'));
+              insomnia.expect(flight.status).to.eql('on-time');
+            });
+      - url: "{{ _.base_url }}/flights"
+        name: Create flight
+        meta:
+          id: req_create_flight
+        method: POST
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: insomnia-mock-method
+            value: POST
+        body:
+          mimeType: application/json
+          text: '{"number":"KA0999","from":"NRT","to":"SFO"}'
+        scripts:
+          afterResponse: |-
+            insomnia.test('status 201', () => insomnia.expect(insomnia.response.code).to.eql(201));
+            insomnia.test('created flag', () => insomnia.expect(insomnia.response.json().created).to.eql(true));
+      - url: "{{ _.base_url }}/flights/XX0000"
+        name: Get unknown flight (404)
+        meta:
+          id: req_unknown_flight
+        method: GET
+        headers:
+          - name: insomnia-mock-method
+            value: GET
+        scripts:
+          afterResponse: |-
+            insomnia.test('status 404', () => insomnia.expect(insomnia.response.code).to.eql(404));
+            insomnia.test('error message', () => insomnia.expect(insomnia.response.json().error).to.eql('flight not found'));
+environments:
+  name: Base Environment
+  meta:
+    id: env_base
+  data:
+    base_url: https://mock-2c1614a28a6341b2bfe02abeeac66aab.mock.insomnia.run
+    via_gateway: false
+  subEnvironments:
+    - name: mock
+      meta:
+        id: env_mock
+      data:
+        base_url: https://mock-2c1614a28a6341b2bfe02abeeac66aab.mock.insomnia.run
+        via_gateway: false
+    - name: staging
+      meta:
+        id: env_staging
+      data:
+        base_url: https://fb2f412c07.us.serverless.gateways.konggateway.com
+        via_gateway: true
+    - name: production
+      meta:
+        id: env_production
+      data:
+        base_url: https://e7fb5e12e2.us.serverless.gateways.konggateway.com
+        via_gateway: true

@@ -1,0 +1,112 @@
+name: APIOps - Flights API
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  INSO_VERSION: 13.3.1
+  DECK_VERSION: 1.62.1
+  API_TAG: flights-api
+  DECK_KONNECT_TOKEN: ${{ secrets.KONNECT_PAT }}
+  DECK_KONNECT_ADDR: ${{ vars.KONNECT_ADDR }}
+  COLLECTION: insomnia/flights-tests.yaml
+
+jobs:
+  # ---------- PR / main: lint the spec and build the Kong config ----------
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Inso and decK
+        run: .github/scripts/install-tools.sh
+
+      - name: Lint OpenAPI spec (Spectral rules in .spectral.yaml)
+        run: inso lint spec ./openapi.yaml
+
+      - name: Test against the mock (contract check before touching the gateway)
+        run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_mock --ci
+
+      - name: Generate Kong config from OpenAPI
+        run: |
+          deck file openapi2kong -s openapi.yaml \
+            | deck file add-plugins kong/plugins.yaml \
+            | deck file add-tags "$API_TAG" -o kong.yaml
+
+      - name: Lint Kong config (governance)
+        run: deck file lint -s kong.yaml kong/governance.yaml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kong-config
+          path: kong.yaml
+
+  # ---------- PR: show what will change on staging ----------
+  diff:
+    if: github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: kong-config }
+      - name: Install decK
+        run: .github/scripts/install-tools.sh deck-only
+      - name: deck gateway diff (staging)
+        run: |
+          {
+            echo '### decK diff against `${{ vars.STAGING_CP }}`'
+            echo '```'
+            deck gateway diff kong.yaml --konnect-control-plane-name "${{ vars.STAGING_CP }}" --select-tag "$API_TAG" --no-color
+            echo '```'
+          } > diff.md
+          cat diff.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment diff on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file diff.md --edit-last --create-if-none
+
+  # ---------- main: deploy to staging and run E2E tests ----------
+  deploy-staging:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: kong-config }
+      - name: Install Inso and decK
+        run: .github/scripts/install-tools.sh
+      - name: deck gateway sync (staging)
+        run: deck gateway sync kong.yaml --konnect-control-plane-name "${{ vars.STAGING_CP }}" --select-tag "$API_TAG"
+      - name: Wait for config propagation
+        run: sleep 20
+      - name: E2E tests through the staging gateway
+        run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_staging --env-var "base_url=${{ vars.STAGING_PROXY_URL }}" --ci
+
+  # ---------- main: deploy to production after approval ----------
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: kong-config }
+      - name: Install Inso and decK
+        run: .github/scripts/install-tools.sh
+      - name: deck gateway sync (production)
+        run: deck gateway sync kong.yaml --konnect-control-plane-name "${{ vars.PRODUCTION_CP }}" --select-tag "$API_TAG"
+      - name: Wait for config propagation
+        run: sleep 20
+      - name: Smoke tests through the production gateway
+        run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_production --env-var "base_url=${{ vars.PRODUCTION_PROXY_URL }}" --requestNamePattern "smoke" --ci

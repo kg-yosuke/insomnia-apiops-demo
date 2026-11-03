@@ -1,0 +1,26 @@
+# Governance rules for the generated Kong config (`deck file lint`).
+rules:
+  upstream-must-use-https:
+    description: Upstream services must use HTTPS.
+    given: $.services[*].protocol
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        match: "^https$"
+  services-must-have-rate-limiting:
+    description: Every service must have the rate-limiting plugin.
+    given: $.services[*]
+    severity: error
+    then:
+      field: plugins
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          contains:
+            type: object
+            properties:
+              name:
+                const: rate-limiting
+            required: [name]

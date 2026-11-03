@@ -1,0 +1,16 @@
+# API design rules shared by Insomnia (editor lint) and `inso lint spec` (CI).
+extends: spectral:oas
+rules:
+  operation-operationId: error
+  operation-description: error
+  operation-tags: error
+  info-contact: error
+  # House rule: paths must be lowercase kebab-case
+  paths-kebab-case:
+    description: Paths must be lowercase kebab-case.
+    severity: error
+    given: $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(/([a-z0-9-]+|\\{[a-zA-Z]+\\}))+$"

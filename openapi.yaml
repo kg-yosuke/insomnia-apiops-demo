@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: KongAir Flights API
+  version: 1.0.0
+  description: Sample Flights API used to demonstrate APIOps with Insomnia, Inso, decK and Kong Konnect.
+  contact:
+    name: KongAir API Team
+    email: api-team@example.com
+servers:
+  # Upstream (Insomnia Cloud Mock)
+  - url: https://mock-2c1614a28a6341b2bfe02abeeac66aab.mock.insomnia.run
+tags:
+  - name: flights
+    description: Flight operations
+paths:
+  /flights:
+    get:
+      operationId: listFlights
+      summary: List flights
+      description: Returns all scheduled flights.
+      tags: [flights]
+      responses:
+        '200':
+          description: A list of flights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlightSummary'
+    post:
+      operationId: createFlight
+      summary: Create a flight
+      description: Registers a new flight.
+      tags: [flights]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightSummary'
+      responses:
+        '201':
+          description: Flight created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  number: { type: string }
+                  created: { type: boolean }
+  /flights/{flightNumber}:
+    get:
+      operationId: getFlight
+      summary: Get a flight
+      description: Returns details of a single flight.
+      tags: [flights]
+      parameters:
+        - name: flightNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Flight details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightDetail'
+        '404':
+          description: Flight not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    FlightSummary:
+      type: object
+      required: [number, from, to]
+      properties:
+        number: { type: string, example: KA0284 }
+        from: { type: string, example: LHR }
+        to: { type: string, example: SFO }
+    FlightDetail:
+      allOf:
+        - $ref: '#/components/schemas/FlightSummary'
+        - type: object
+          properties:
+            status: { type: string, example: on-time }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
