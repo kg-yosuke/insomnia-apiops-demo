@@ -234,7 +234,9 @@ gh secret set KONNECT_PAT --repo <owner>/<repo>
 │   └── governance.yaml           # deck file lint 用のガバナンスルール
 └── .github/
     ├── workflows/apiops.yaml     # パイプライン本体
-    └── scripts/install-tools.sh  # Inso CLI と decK のインストール
+    └── scripts/
+        ├── install-tools.sh      # Inso CLI と decK のインストール
+        └── wait-for-gateway.sh   # 反映後、Gateway が応答するまで待つ（Serverless のコールドスタート対策）
 ```
 
 ### `openapi.yaml` — API 仕様
@@ -310,6 +312,7 @@ Spectral の OAS 標準ルール（`spectral:oas`）に、次の社内ルール�
 | `build` が `Repository variable MOCK_URL is not set` で失敗 | Variables に `MOCK_URL` を登録する（Secrets ではなく Variables） |
 | ② で `body is valid JSON` / `JSON response` が失敗 | Mock ルートのボディが空、または `Content-Type: application/json` が付いていない。修正後、各ルートで **Send** を押して Cloud Mock に反映する |
 | ② で全リクエストが接続エラー | インポート後に各ルートで Send を押していない（Cloud Mock にルートが登録されていない） |
+| ⑥ / ⑨ で最初のリクエストが `Timeout was reached` | Serverless Gateway は、しばらくアクセスがないと最初の 1 回の応答に 10〜20 秒以上かかります（コールドスタート）。本リポジトリでは `wait-for-gateway.sh` で 200 が返るまで待ってからテストを実行しています |
 | `deck gateway sync` が `HTTP status 401` | Secret の PAT が無効。`gh secret set` の名前と値の取り違えや、取り消し済みの PAT が入っていないか確認する |
 | スクリプトで `insomnia.response.headers.get('Content-Type')` が `undefined` | ヘッダー名の検索が大文字・小文字を区別するため。本リポジトリでは `headers.find(h => h.key.toLowerCase() === ...)` で回避している |
 | Inso のダウンロードに失敗 | Inso のリリースタグは `core@<version>`（例：`core@13.3.1`） |

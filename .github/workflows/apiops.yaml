@@ -109,8 +109,8 @@ jobs:
         run: .github/scripts/install-tools.sh
       - name: deck gateway sync (staging)
         run: deck gateway sync kong.yaml --konnect-control-plane-name "${{ vars.STAGING_CP }}" --select-tag "$API_TAG"
-      - name: Wait for config propagation
-        run: sleep 20
+      - name: Wait for the gateway (config propagation and serverless cold start)
+        run: .github/scripts/wait-for-gateway.sh "${{ vars.STAGING_PROXY_URL }}/flights"
       - name: E2E tests through the staging gateway
         run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_staging --env-var "base_url=${{ vars.STAGING_PROXY_URL }}" --ci
 
@@ -127,7 +127,7 @@ jobs:
         run: .github/scripts/install-tools.sh
       - name: deck gateway sync (production)
         run: deck gateway sync kong.yaml --konnect-control-plane-name "${{ vars.PRODUCTION_CP }}" --select-tag "$API_TAG"
-      - name: Wait for config propagation
-        run: sleep 20
+      - name: Wait for the gateway (config propagation and serverless cold start)
+        run: .github/scripts/wait-for-gateway.sh "${{ vars.PRODUCTION_PROXY_URL }}/flights"
       - name: Smoke tests through the production gateway
         run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_production --env-var "base_url=${{ vars.PRODUCTION_PROXY_URL }}" --requestNamePattern "smoke" --ci
