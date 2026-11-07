@@ -103,24 +103,24 @@ environments:
   meta:
     id: env_base
   data:
-    base_url: https://mock-2c1614a28a6341b2bfe02abeeac66aab.mock.insomnia.run
+    base_url: https://YOUR-MOCK-ID.mock.insomnia.run
     via_gateway: false
   subEnvironments:
     - name: mock
       meta:
         id: env_mock
       data:
-        base_url: https://mock-2c1614a28a6341b2bfe02abeeac66aab.mock.insomnia.run
+        base_url: https://YOUR-MOCK-ID.mock.insomnia.run
         via_gateway: false
     - name: staging
       meta:
         id: env_staging
       data:
-        base_url: https://fb2f412c07.us.serverless.gateways.konggateway.com
+        base_url: https://YOUR-STAGING-PROXY-URL
         via_gateway: true
     - name: production
       meta:
         id: env_production
       data:
-        base_url: https://e7fb5e12e2.us.serverless.gateways.konggateway.com
+        base_url: https://YOUR-PRODUCTION-PROXY-URL
         via_gateway: true

@@ -1,0 +1,46 @@
+type: mock.insomnia.rest/5.0
+name: Flights Mock
+server:
+  url: ""
+  useInsomniaCloud: true
+routes:
+  - name: /flights
+    method: GET
+    statusCode: 200
+    statusText: OK
+    mimeType: application/json
+    headers:
+      - name: Content-Type
+        value: application/json
+    body: |-
+      [
+        {"number":"KA0284","from":"LHR","to":"SFO"},
+        {"number":"KA0285","from":"SFO","to":"LHR"}
+      ]
+  - name: /flights/KA0284
+    method: GET
+    statusCode: 200
+    statusText: OK
+    mimeType: application/json
+    headers:
+      - name: Content-Type
+        value: application/json
+    body: '{"number":"KA0284","from":"LHR","to":"SFO","status":"on-time"}'
+  - name: /flights
+    method: POST
+    statusCode: 201
+    statusText: Created
+    mimeType: application/json
+    headers:
+      - name: Content-Type
+        value: application/json
+    body: '{"number":"KA0999","created":true}'
+  - name: /flights/XX0000
+    method: GET
+    statusCode: 404
+    statusText: Not Found
+    mimeType: application/json
+    headers:
+      - name: Content-Type
+        value: application/json
+    body: '{"error":"flight not found"}'

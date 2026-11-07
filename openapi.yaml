@@ -7,8 +7,8 @@ info:
     name: KongAir API Team
     email: api-team@example.com
 servers:
-  # Upstream (Insomnia Cloud Mock)
-  - url: https://mock-2c1614a28a6341b2bfe02abeeac66aab.mock.insomnia.run
+  # Upstream (Insomnia Cloud Mock). CI replaces this with the MOCK_URL repository variable.
+  - url: https://YOUR-MOCK-ID.mock.insomnia.run
 tags:
   - name: flights
     description: Flight operations

@@ -15,25 +15,46 @@ env:
   INSO_VERSION: 13.3.1
   DECK_VERSION: 1.62.1
   API_TAG: flights-api
+  MOCK_URL: ${{ vars.MOCK_URL }}
   DECK_KONNECT_TOKEN: ${{ secrets.KONNECT_PAT }}
   DECK_KONNECT_ADDR: ${{ vars.KONNECT_ADDR }}
   COLLECTION: insomnia/flights-tests.yaml
+  MOCK_PLACEHOLDER: https://YOUR-MOCK-ID.mock.insomnia.run
 
 jobs:
   # ---------- PR / main: lint the spec and build the Kong config ----------
   build:
     runs-on: ubuntu-latest
+    outputs:
+      konnect: ${{ steps.konnect.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check settings
+        id: konnect
+        run: |
+          if [ -z "$MOCK_URL" ]; then
+            echo "::error::Repository variable MOCK_URL is not set (e.g. https://mock-xxxx.mock.insomnia.run)"
+            exit 1
+          fi
+          if [ -n "$DECK_KONNECT_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::KONNECT_PAT is not set. Gateway deployment steps will be skipped."
+          fi
+
       - name: Install Inso and decK
         run: .github/scripts/install-tools.sh
+
+      - name: Set upstream to the mock URL
+        run: sed -i "s#${MOCK_PLACEHOLDER}#${MOCK_URL%/}#g" openapi.yaml
 
       - name: Lint OpenAPI spec (Spectral rules in .spectral.yaml)
         run: inso lint spec ./openapi.yaml
 
       - name: Test against the mock (contract check before touching the gateway)
-        run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_mock --ci
+        run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_mock --env-var "base_url=${MOCK_URL%/}" --ci
 
       - name: Generate Kong config from OpenAPI
         run: |
@@ -51,7 +72,7 @@ jobs:
 
   # ---------- PR: show what will change on staging ----------
   diff:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && needs.build.outputs.konnect == 'true'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -76,7 +97,7 @@ jobs:
 
   # ---------- main: deploy to staging and run E2E tests ----------
   deploy-staging:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.build.outputs.konnect == 'true'
     needs: build
     runs-on: ubuntu-latest
     environment: staging
