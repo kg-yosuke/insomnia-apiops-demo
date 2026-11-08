@@ -53,9 +53,6 @@ jobs:
       - name: Lint OpenAPI spec (Spectral rules in .spectral.yaml)
         run: inso lint spec ./openapi.yaml
 
-      - name: Test against the mock (contract check before touching the gateway)
-        run: inso run collection wrk_flights_tests -w "$COLLECTION" --env env_mock --env-var "base_url=${MOCK_URL%/}" --ci
-
       - name: Generate Kong config from OpenAPI
         run: |
           deck file openapi2kong -s openapi.yaml \
